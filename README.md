@@ -3,6 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/NJerez-dev/Logistics-data-portfolio/blob/main/inventory_analysis.ipynb)
+[![Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io/cloud)
 
 Proyecto de portfolio que analiza datos simulados de ventas e inventario de un
 e-commerce para identificar riesgos de quiebre de stock y calcular KPIs de
@@ -12,6 +13,7 @@ bodega y categoría.
 ## Tabla de contenidos
 
 - [Objetivo](#objetivo)
+- [Dashboard interactivo](#dashboard-interactivo)
 - [Stack técnico](#stack-técnico)
 - [Estructura del repositorio](#estructura-del-repositorio)
 - [Cómo reproducir el análisis](#cómo-reproducir-el-análisis)
@@ -32,6 +34,42 @@ Mostrar un flujo end-to-end de análisis de datos logísticos:
 5. **Visualización** tipo "semáforo" del estado del inventario.
 6. **Reporting** en un libro Excel multi-hoja con gráficos embebidos.
 
+## Dashboard interactivo
+
+El proyecto incluye un dashboard en **Streamlit** que permite explorar los KPIs
+en vivo: filtrar por bodega y categoría, ajustar el nivel de servicio (90 % a
+99 %) y el buffer del semáforo, y descargar la tabla resultante de ROP/SS en CSV.
+
+### Correr el dashboard localmente
+
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+Abre tu navegador en [http://localhost:8501](http://localhost:8501).
+
+### Despliegue en Streamlit Community Cloud
+
+1. Haz fork de este repositorio en tu cuenta de GitHub.
+2. Ve a [streamlit.io/cloud](https://streamlit.io/cloud) e inicia sesión con GitHub.
+3. Pulsa **New app**, selecciona el repo y elige `streamlit_app.py` como
+   archivo principal.
+4. La app quedará pública en una URL del estilo
+   `https://<tu-usuario>-logistics-data-portfolio.streamlit.app`.
+
+> Una vez desplegada, reemplaza la URL en el badge de Streamlit al inicio del
+> README para que apunte directamente a tu instancia.
+
+### Vista general
+
+| Sección                         | Qué muestra                                                       |
+| ------------------------------- | ----------------------------------------------------------------- |
+| **KPI cards**                   | Ingresos, unidades vendidas, conteo de productos críticos/alerta. |
+| **📊 Resumen de ventas**        | Ingresos por categoría, por bodega y top 10 productos.            |
+| **🚦 Estado de inventario**     | Semáforo por producto (rojo/amarillo/verde) + ROP overlay.        |
+| **📋 KPIs por producto/bodega** | Tabla detallada filtrable + descarga en CSV.                      |
+
 ## Stack técnico
 
 | Herramienta   | Uso                                              |
@@ -41,6 +79,8 @@ Mostrar un flujo end-to-end de análisis de datos logísticos:
 | `matplotlib`  | Gráficos base                                    |
 | `seaborn`     | Estilos y paletas de visualización               |
 | `xlsxwriter`  | Exportación a Excel con gráficos embebidos       |
+| `streamlit`   | Dashboard interactivo (`streamlit_app.py`)       |
+| `plotly`      | Gráficos interactivos del dashboard              |
 | Jupyter       | Cuaderno interactivo (`inventory_analysis.ipynb`)|
 
 ## Estructura del repositorio
@@ -48,6 +88,8 @@ Mostrar un flujo end-to-end de análisis de datos logísticos:
 ```
 .
 ├── inventory_analysis.ipynb     # Notebook principal con todo el análisis
+├── streamlit_app.py             # Dashboard interactivo
+├── .streamlit/config.toml       # Tema y configuración del dashboard
 ├── inventory_transactions.csv   # Dataset sintético generado (entrada)
 ├── inventario_kpis.xlsx         # Reporte final multi-hoja (salida)
 ├── requirements.txt             # Dependencias del proyecto
