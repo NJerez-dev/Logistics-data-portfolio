@@ -1,6 +1,8 @@
 # Optimización y Análisis de Inventario
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![CI](https://github.com/NJerez-dev/Logistics-data-portfolio/actions/workflows/ci.yml/badge.svg)](https://github.com/NJerez-dev/Logistics-data-portfolio/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/NJerez-dev/Logistics-data-portfolio/blob/main/inventory_analysis.ipynb)
 [![Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io/cloud)
@@ -14,11 +16,14 @@ bodega y categoría.
 
 - [Objetivo](#objetivo)
 - [Dashboard interactivo](#dashboard-interactivo)
+- [El paquete `inventory`](#el-paquete-inventory)
+- [Generador de datos realista](#generador-de-datos-realista)
 - [Stack técnico](#stack-técnico)
 - [Estructura del repositorio](#estructura-del-repositorio)
 - [Cómo reproducir el análisis](#cómo-reproducir-el-análisis)
 - [Análisis realizado](#análisis-realizado)
 - [KPIs calculados](#kpis-calculados)
+- [Tests y CI](#tests-y-ci)
 - [Conclusiones clave](#conclusiones-clave)
 - [Próximos pasos](#próximos-pasos)
 - [Licencia](#licencia)
@@ -27,12 +32,13 @@ bodega y categoría.
 
 Mostrar un flujo end-to-end de análisis de datos logísticos:
 
-1. **Generación** de un dataset sintético realista (50 productos × 3 bodegas × 180 días).
+1. **Generación** de un dataset sintético realista (50 productos × 3 bodegas × 365 días, con estacionalidad anual y semanal, curva ABC, lead times log-normales y stock evolucionado de forma coherente).
 2. **Exploración** de ventas por categoría, bodega y producto.
 3. **Detección** de productos en riesgo de quiebre de stock.
-4. **Cálculo** de KPIs de reposición (ROP, Stock de Seguridad) con un nivel de servicio del 95%.
+4. **Cálculo** de KPIs de reposición (ROP, Stock de Seguridad) con un nivel de servicio del 95 %.
 5. **Visualización** tipo "semáforo" del estado del inventario.
-6. **Reporting** en un libro Excel multi-hoja con gráficos embebidos.
+6. **Reporting** en un libro Excel multi-hoja y en un **dashboard interactivo de Streamlit**.
+7. **Calidad de código**: paquete instalable con `pyproject.toml`, suite de `pytest` y CI con GitHub Actions.
 
 ## Dashboard interactivo
 
@@ -70,6 +76,59 @@ Abre tu navegador en [http://localhost:8501](http://localhost:8501).
 | **🚦 Estado de inventario**     | Semáforo por producto (rojo/amarillo/verde) + ROP overlay.        |
 | **📋 KPIs por producto/bodega** | Tabla detallada filtrable + descarga en CSV.                      |
 
+## El paquete `inventory`
+
+La lógica de negocio vive en `src/inventory/` como paquete Python instalable
+y testeado, no en celdas de notebook copiadas.
+
+```python
+from inventory import (
+    generate_dataset,
+    compute_product_kpis,
+    compute_warehouse_kpis,
+    status_for,
+    SERVICE_LEVELS,
+)
+
+df = generate_dataset()                       # dataset sintético realista
+kpis = compute_product_kpis(df, z=1.645)      # SS y ROP por producto
+status_for(stock=10, rop=20, avg_demand=2, buffer_days=7)
+# → '🔴 Crítico'
+```
+
+Se instala en modo editable con:
+
+```bash
+pip install -e ".[dev]"
+```
+
+| Módulo                  | Responsabilidad                                          |
+| ----------------------- | -------------------------------------------------------- |
+| `inventory.config`      | Constantes (Z-scores, categorías, bodegas, etiquetas).   |
+| `inventory.data_gen`    | Generador sintético con estacionalidad y stock coherente.|
+| `inventory.kpis`        | `compute_product_kpis`, `compute_warehouse_kpis`, etc.   |
+
+El notebook y el dashboard de Streamlit consumen esta misma API, por lo que
+los cálculos están garantizados consistentes entre ambos.
+
+## Generador de datos realista
+
+El módulo `inventory.data_gen` reemplaza la simulación trivial original
+(Poisson uniforme + stock independiente) por algo que se parece a retail real:
+
+| Característica           | Detalle                                                                  |
+| ------------------------ | ------------------------------------------------------------------------ |
+| **Curva ABC**            | Demanda baseline ~ Pareto: ~20 % de los SKUs concentran la mayor parte de los ingresos. |
+| **Estacionalidad anual** | Pico en noviembre-diciembre (Black Friday + holidays), valle en febrero. |
+| **Estacionalidad semanal** | Pico de lunes a jueves, caída los fines de semana.                     |
+| **Tendencia por SKU**    | Cada combinación producto-bodega tiene una pendiente lineal aleatoria.   |
+| **Promociones**          | ~2 % de los días tienen un uplift de demanda × 2,5.                      |
+| **Stock coherente**      | `stock_t = max(0, stock_{t−1} − sold_t + arrivals_t)` — los quiebres son **emergentes**, no un artefacto de muestreo. |
+| **Lead times log-normales** | Cada orden de reposición tarda un tiempo distinto en llegar.          |
+| **Política (s, Q)**      | Cuando `stock < ROP`, se dispara una orden de tamaño `Q`.                |
+
+Todos estos parámetros se exponen en `GenerationParams` para experimentación.
+
 ## Stack técnico
 
 | Herramienta   | Uso                                              |
@@ -87,12 +146,22 @@ Abre tu navegador en [http://localhost:8501](http://localhost:8501).
 
 ```
 .
+├── src/inventory/               # Paquete instalable
+│   ├── __init__.py
+│   ├── config.py                # Constantes (Z, categorías, etiquetas)
+│   ├── data_gen.py              # Generador sintético realista
+│   └── kpis.py                  # Cálculo de SS / ROP / semáforo
+├── tests/                       # Suite de pytest
+│   ├── test_data_gen.py
+│   └── test_kpis.py
+├── .github/workflows/ci.yml     # Lint + tests en GitHub Actions
 ├── inventory_analysis.ipynb     # Notebook principal con todo el análisis
 ├── streamlit_app.py             # Dashboard interactivo
 ├── .streamlit/config.toml       # Tema y configuración del dashboard
 ├── inventory_transactions.csv   # Dataset sintético generado (entrada)
 ├── inventario_kpis.xlsx         # Reporte final multi-hoja (salida)
-├── requirements.txt             # Dependencias del proyecto
+├── pyproject.toml               # Empaquetado + configuración de ruff/pytest
+├── requirements.txt             # Dependencias para el dashboard / notebook
 ├── LICENSE                      # Licencia MIT
 └── README.md                    # Este archivo
 ```
@@ -109,6 +178,8 @@ Abre tu navegador en [http://localhost:8501](http://localhost:8501).
    ```bash
    python -m venv .venv
    source .venv/bin/activate      # En Windows: .venv\Scripts\activate
+   pip install -e ".[dev,app]"    # paquete + dependencias de tests y dashboard
+   # o, si solo quieres correr el notebook / dashboard:
    pip install -r requirements.txt
    ```
 
@@ -128,7 +199,9 @@ Abre tu navegador en [http://localhost:8501](http://localhost:8501).
 ### 1. Generación de datos
 - 50 productos en 4 categorías (`Electronics`, `Home`, `Industrial`, `Food`).
 - 3 bodegas (`Santiago`, `Valparaiso`, `Concepcion`).
-- 180 días de transacciones diarias con demanda Poisson y stock normal.
+- 365 días con demanda Poisson modulada por estacionalidad anual y semanal,
+  curva ABC, promociones y stock evolucionado vía política (s, Q).
+- Ver [Generador de datos realista](#generador-de-datos-realista) para más detalle.
 
 ### 2. Análisis de ventas
 - Ingresos totales y unidades vendidas.
@@ -162,6 +235,27 @@ Reorder Point (ROP) = demanda_promedio_diaria · lead_time + SS
 Los KPIs se agregan también a nivel de **categoría × bodega** para apoyar
 decisiones tácticas de reabastecimiento.
 
+## Tests y CI
+
+Suite con `pytest` que cubre:
+
+- **Generador**: schema, ausencia de nulos, `units_sold ≥ 0`, `stock_level ≥ 0`,
+  determinismo bajo el mismo seed, presencia de la curva ABC y de la
+  estacionalidad anual.
+- **KPIs**: `safety_stock ≥ 0`, monotonía respecto al nivel de servicio y al
+  lead time, fronteras del semáforo, estabilidad ante varianza nula.
+
+Ejecútalos localmente:
+
+```bash
+pip install -e ".[dev]"
+ruff check src tests
+pytest -v
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) corre lint + tests automáticamente
+en cada push / PR sobre Python 3.10, 3.11 y 3.12.
+
 ## Conclusiones clave
 
 1. La categoría **Industrial** concentra el mayor volumen de ingresos.
@@ -173,10 +267,11 @@ decisiones tácticas de reabastecimiento.
 
 ## Próximos pasos
 
-- Incorporar **estacionalidad** en la simulación de demanda.
-- Modelar **lead times variables** con distribución log-normal.
-- Comparar la política `(s, S)` vs. `(R, Q)` para distintos productos.
-- Conectar el pipeline a un dashboard en **Streamlit** o **Power BI**.
+- **Forecasting** de demanda comparando baseline (media móvil) vs. Prophet vs. LightGBM.
+- **Simulación Monte Carlo** del fill rate real bajo distintas políticas.
+- **Comparación de políticas** `(s, S)` vs. `(R, Q)` vs. base-stock.
+- **Clasificación ABC/XYZ** para segmentar la lógica de reposición.
+- **Anomaly detection** en las series de ventas.
 
 ## Licencia
 

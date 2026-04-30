@@ -1,31 +1,37 @@
 """Streamlit dashboard for the Logistics Inventory Portfolio.
 
 Run locally:
+    pip install -r requirements.txt
     streamlit run streamlit_app.py
 
 Deploy: push to GitHub and connect the repo on https://streamlit.io/cloud
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
-import plotly.express as px
-import streamlit as st
+# Make the local `src/inventory` package importable without an explicit install
+# (helps for Streamlit Community Cloud and quick local runs).
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+
+import pandas as pd  # noqa: E402
+import plotly.express as px  # noqa: E402
+import streamlit as st  # noqa: E402
+
+from inventory import (  # noqa: E402
+    SERVICE_LEVELS,
+    STATUS_ALERT,
+    STATUS_CRITICAL,
+    STATUS_HEALTHY,
+    compute_product_kpis,
+    compute_warehouse_kpis,
+    latest_stock_per_product,
+    status_for,
+)
 
 DATA_PATH = Path(__file__).parent / "inventory_transactions.csv"
 
-SERVICE_LEVELS: dict[str, float] = {
-    "90%": 1.282,
-    "95%": 1.645,
-    "97.5%": 1.960,
-    "99%": 2.326,
-}
-
-STATUS_CRITICAL = "🔴 Crítico"
-STATUS_ALERT = "🟡 Alerta"
-STATUS_HEALTHY = "🟢 Saludable"
 STATUS_COLORS = {
     STATUS_CRITICAL: "#e74c3c",
     STATUS_ALERT: "#f1c40f",
@@ -40,83 +46,11 @@ st.set_page_config(
 
 
 # --------------------------------------------------------------------------- #
-# Data loading & KPI computation                                              #
+# Data loading                                                                #
 # --------------------------------------------------------------------------- #
 @st.cache_data
 def load_data(path: Path = DATA_PATH) -> pd.DataFrame:
-    df = pd.read_csv(path, parse_dates=["date"])
-    return df
-
-
-@st.cache_data
-def compute_product_kpis(df: pd.DataFrame, z: float) -> pd.DataFrame:
-    """Aggregate demand to product level and compute SS/ROP."""
-    daily = (
-        df.groupby(["product_id", "date"])["units_sold"].sum().reset_index()
-    )
-    stats = (
-        daily.groupby("product_id")["units_sold"]
-        .agg(["mean", "std"])
-        .reset_index()
-        .rename(columns={"mean": "avg_demand", "std": "std_demand"})
-    )
-    details = df[
-        ["product_id", "product_name", "category", "supplier_lead_time"]
-    ].drop_duplicates()
-    out = stats.merge(details, on="product_id")
-    out["safety_stock"] = (
-        z * out["std_demand"] * np.sqrt(out["supplier_lead_time"])
-    ).fillna(0).round().astype(int)
-    out["reorder_point"] = (
-        out["avg_demand"] * out["supplier_lead_time"] + out["safety_stock"]
-    ).round().astype(int)
-    return out
-
-
-@st.cache_data
-def compute_warehouse_kpis(df: pd.DataFrame, z: float) -> pd.DataFrame:
-    """Compute SS/ROP at the product × warehouse level."""
-    daily = (
-        df.groupby(["product_id", "warehouse", "date"])["units_sold"]
-        .sum()
-        .reset_index()
-    )
-    stats = (
-        daily.groupby(["product_id", "warehouse"])["units_sold"]
-        .agg(["mean", "std"])
-        .reset_index()
-        .rename(columns={"mean": "avg_demand", "std": "std_demand"})
-    )
-    details = df[
-        ["product_id", "product_name", "category", "supplier_lead_time"]
-    ].drop_duplicates()
-    out = stats.merge(details, on="product_id")
-    out["safety_stock"] = (
-        z * out["std_demand"] * np.sqrt(out["supplier_lead_time"])
-    ).fillna(0).round().astype(int)
-    out["reorder_point"] = (
-        out["avg_demand"] * out["supplier_lead_time"] + out["safety_stock"]
-    ).round().astype(int)
-    return out
-
-
-@st.cache_data
-def latest_stock_per_product(df: pd.DataFrame) -> pd.DataFrame:
-    latest = (
-        df.sort_values("date")
-        .groupby("product_id")
-        .tail(1)[["product_id", "stock_level"]]
-        .rename(columns={"stock_level": "current_stock"})
-    )
-    return latest
-
-
-def status_for(current: float, rop: int, avg_demand: float, buffer_days: int) -> str:
-    if current < rop:
-        return STATUS_CRITICAL
-    if current < rop + buffer_days * avg_demand:
-        return STATUS_ALERT
-    return STATUS_HEALTHY
+    return pd.read_csv(path, parse_dates=["date"])
 
 
 # --------------------------------------------------------------------------- #
@@ -159,8 +93,9 @@ with st.sidebar:
 
     st.divider()
     st.caption(
-        "Datos sintéticos generados con `np.random.seed(42)`. "
-        "Ver el [notebook](inventory_analysis.ipynb) para detalle de la metodología."
+        "Datos sintéticos generados con seed 42 (estacionalidad anual + semanal, "
+        "curva ABC, lead times log-normales). "
+        "Ver el [notebook](inventory_analysis.ipynb) para la metodología."
     )
 
 
@@ -267,6 +202,11 @@ with tab_sales:
     )
     st.plotly_chart(fig, width="stretch")
 
+    st.caption(
+        "💡 La curva ABC del dataset hace que ~20 % de los SKUs concentren la "
+        "mayor parte de los ingresos — patrón típico de retail."
+    )
+
 with tab_traffic:
     st.subheader("Estado de inventario por producto")
     st.caption(
@@ -303,7 +243,7 @@ with tab_traffic:
         y=sorted_prods["reorder_point"],
         mode="markers",
         name="Punto de reorden",
-        marker=dict(color="black", symbol="line-ew", size=12, line=dict(width=3)),
+        marker={"color": "black", "symbol": "line-ew", "size": 12, "line": {"width": 3}},
     )
     fig.update_layout(xaxis_tickangle=-60, height=500)
     st.plotly_chart(fig, width="stretch")
