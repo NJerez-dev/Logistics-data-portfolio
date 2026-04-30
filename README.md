@@ -5,12 +5,14 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/NJerez-dev/Logistics-data-portfolio/blob/main/inventory_analysis.ipynb)
-[![Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io/cloud)
+[![Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://logistics-data-portfolio-k9zdgvvcqnzzguigqdppa5.streamlit.app/)
 
 Proyecto de portfolio que analiza datos simulados de ventas e inventario de un
 e-commerce para identificar riesgos de quiebre de stock y calcular KPIs de
 gestión de inventario (Punto de Reorden y Stock de Seguridad) por producto,
 bodega y categoría.
+
+> 🔗 **Demo en vivo:** <https://logistics-data-portfolio-k9zdgvvcqnzzguigqdppa5.streamlit.app/>
 
 ## Tabla de contenidos
 
@@ -41,6 +43,8 @@ Mostrar un flujo end-to-end de análisis de datos logísticos:
 7. **Calidad de código**: paquete instalable con `pyproject.toml`, suite de `pytest` y CI con GitHub Actions.
 
 ## Dashboard interactivo
+
+🌐 **Pruébalo aquí:** <https://logistics-data-portfolio-k9zdgvvcqnzzguigqdppa5.streamlit.app/>
 
 El proyecto incluye un dashboard en **Streamlit** que permite explorar los KPIs
 en vivo: filtrar por bodega y categoría, ajustar el nivel de servicio (90 % a
